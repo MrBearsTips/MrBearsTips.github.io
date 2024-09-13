@@ -1,6 +1,331 @@
-<html>
-  <body>
-    <h1>Welcome to My Website!</h1>
-    <p>This is a cool site hosted on GitHub Pages.</p>
-  </body>
-</html>
+Project Structure:
+/betting-tips-website
+    /frontend
+        /public
+            index.html
+            favicon.ico
+        /src
+            /components
+                Header.js
+                Footer.js
+                TipsList.js
+                SubscriptionForm.js
+            /pages
+                Home.js
+                FreeTips.js
+                PremiumTips.js
+                Profile.js
+            /styles
+                main.css
+            App.js
+            index.js
+    /backend
+        /models
+            User.js
+            Tip.js
+        /routes
+            auth.js
+            tips.js
+            subscription.js
+        /controllers
+            authController.js
+            tipsController.js
+            subscriptionController.js
+        /middleware
+            auth.js
+        /config
+            database.js
+        server.js
+    package.json
+    README.md
+
+Frontend (React):
+
+1. App.js
+```javascript
+import React from 'react';
+import { BrowserRouter as Router, Route, Switch } from 'react-router-dom';
+import Header from './components/Header';
+import Footer from './components/Footer';
+import Home from './pages/Home';
+import FreeTips from './pages/FreeTips';
+import PremiumTips from './pages/PremiumTips';
+import Profile from './pages/Profile';
+
+function App() {
+  return (
+    <Router>
+      <Header />
+      <Switch>
+        <Route exact path="/" component={Home} />
+        <Route path="/free-tips" component={FreeTips} />
+        <Route path="/premium-tips" component={PremiumTips} />
+        <Route path="/profile" component={Profile} />
+      </Switch>
+      <Footer />
+    </Router>
+  );
+}
+
+export default App;
+```
+
+2. TipsList.js
+```javascript
+import React from 'react';
+
+function TipsList({ tips }) {
+  return (
+    <ul>
+      {tips.map((tip) => (
+        <li key={tip.id}>{tip.content}</li>
+      ))}
+    </ul>
+  );
+}
+
+export default TipsList;
+```
+
+3. SubscriptionForm.js
+```javascript
+import React, { useState } from 'react';
+import axios from 'axios';
+
+function SubscriptionForm() {
+  const [email, setEmail] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post('/api/subscription', { email });
+      alert('Subscription successful!');
+    } catch (error) {
+      alert('Subscription failed. Please try again.');
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="Enter your email"
+        required
+      />
+      <button type="submit">Subscribe</button>
+    </form>
+  );
+}
+
+export default SubscriptionForm;
+```
+
+Backend (Node.js with Express):
+
+1. server.js
+```javascript
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const authRoutes = require('./routes/auth');
+const tipsRoutes = require('./routes/tips');
+const subscriptionRoutes = require('./routes/subscription');
+
+const app = express();
+
+app.use(cors());
+app.use(express.json());
+
+mongoose.connect('mongodb://localhost/betting_tips_db', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+});
+
+app.use('/api/auth', authRoutes);
+app.use('/api/tips', tipsRoutes);
+app.use('/api/subscription', subscriptionRoutes);
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+```
+
+2. User.js (model)
+```javascript
+const mongoose = require('mongoose');
+
+const userSchema = new mongoose.Schema({
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  isPremium: { type: Boolean, default: false },
+});
+
+module.exports = mongoose.model('User', userSchema);
+```
+
+3. Tip.js (model)
+```javascript
+const mongoose = require('mongoose');
+
+const tipSchema = new mongoose.Schema({
+  content: { type: String, required: true },
+  isPremium: { type: Boolean, default: false },
+  createdAt: { type: Date, default: Date.now },
+});
+
+module.exports = mongoose.model('Tip', tipSchema);
+```
+
+4. authController.js
+```javascript
+const User = require('../models/User');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+
+exports.register = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = new User({ email, password: hashedPassword });
+    await user.save();
+    res.status(201).json({ message: 'User registered successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Registration failed' });
+  }
+};
+
+exports.login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    const token = jwt.sign({ userId: user._id }, 'your_jwt_secret');
+    res.json({ token });
+  } catch (error) {
+    res.status(500).json({ error: 'Login failed' });
+  }
+};
+```
+
+5. tipsController.js
+```javascript
+const Tip = require('../models/Tip');
+
+exports.getFreeTips = async (req, res) => {
+  try {
+    const tips = await Tip.find({ isPremium: false }).sort('-createdAt').limit(5);
+    res.json(tips);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch free tips' });
+  }
+};
+
+exports.getPremiumTips = async (req, res) => {
+  try {
+    const tips = await Tip.find().sort('-createdAt').limit(10);
+    res.json(tips);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch premium tips' });
+  }
+};
+```
+
+6. subscriptionController.js
+```javascript
+const User = require('../models/User');
+
+exports.subscribe = async (req, res) => {
+  try {
+    const { userId } = req.user;
+    await User.findByIdAndUpdate(userId, { isPremium: true });
+    res.json({ message: 'Subscription successful' });
+  } catch (error) {
+    res.status(500).json({ error: 'Subscription failed' });
+  }
+};
+```
+
+7. auth.js (middleware)
+```javascript
+const jwt = require('jsonwebtoken');
+
+module.exports = (req, res, next) => {
+  try {
+    const token = req.headers.authorization.split(' ')[1];
+    const decodedToken = jwt.verify(token, 'your_jwt_secret');
+    req.user = { userId: decodedToken.userId };
+    next();
+  } catch (error) {
+    res.status(401).json({ error: 'Authentication failed' });
+  }
+};
+```
+
+To implement the feature of sending tips to members:
+
+1. Create a new model for storing member contact information (email or phone number).
+2. Set up a scheduled task (e.g., using node-cron) to send tips at regular intervals.
+3. Use a service like SendGrid or Twilio to send emails or SMS messages with the tips.
+
+Here's a basic implementation for sending tips via email:
+
+8. TipScheduler.js
+```javascript
+const cron = require('node-cron');
+const User = require('./models/User');
+const Tip = require('./models/Tip');
+const sgMail = require('@sendgrid/mail');
+
+sgMail.setApiKey('your_sendgrid_api_key');
+
+const sendTips = async () => {
+  const freeTip = await Tip.findOne({ isPremium: false }).sort('-createdAt');
+  const premiumTip = await Tip.findOne({ isPremium: true }).sort('-createdAt');
+
+  const freeUsers = await User.find({ isPremium: false });
+  const premiumUsers = await User.find({ isPremium: true });
+
+  freeUsers.forEach(user => {
+    sgMail.send({
+      to: user.email,
+      from: 'tips@yourdomain.com',
+      subject: 'Your Daily Free Betting Tip',
+      text: freeTip.content,
+    });
+  });
+
+  premiumUsers.forEach(user => {
+    sgMail.send({
+      to: user.email,
+      from: 'tips@yourdomain.com',
+      subject: 'Your Daily Premium Betting Tip',
+      text: `Free Tip: ${freeTip.content}\n\nPremium Tip: ${premiumTip.content}`,
+    });
+  });
+};
+
+cron.schedule('0 9 * * *', sendTips);  // Run every day at 9 AM
+```
+
+Add this to your server.js:
+
+```javascript
+require('./TipScheduler');
+```
+
+This structure provides a solid foundation for your betting tips website. It includes user authentication, subscription management, and automatic tip distribution. You'll need to implement proper security measures, error handling, and potentially use a payment gateway for premium subscriptions.
+
+Remember to:
+1. Use environment variables for sensitive information (API keys, database URLs, etc.).
+2. Implement proper input validation and sanitization.
+3. Use HTTPS for all communications.
+4. Regularly update and patch your dependencies.
+
+Would you like me to elaborate on any specific part of this structure?
